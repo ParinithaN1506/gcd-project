@@ -1,0 +1,105 @@
+{
+  "entities": {
+    "NGO": {
+      "title": "NGO Profile",
+      "description": "Details about an NGO including metadata, location, and services provided.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "description": { "type": "string" },
+        "services": { "type": "array", "items": { "type": "string" } },
+        "needs": { "type": "array", "items": { "type": "string" } },
+        "location": {
+          "type": "object",
+          "properties": {
+            "address": { "type": "string" },
+            "lat": { "type": "number" },
+            "lng": { "type": "number" }
+          }
+        },
+        "contact": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["name", "description", "ownerId"]
+    },
+    "Crisis": {
+      "title": "Crisis/Issue Report",
+      "description": "A report of a local issue requiring NGO intervention.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "title": { "type": "string" },
+        "description": { "type": "string" },
+        "urgency": { "type": "string", "enum": ["low", "medium", "high", "critical"] },
+        "location": {
+          "type": "object",
+          "properties": {
+            "address": { "type": "string" },
+            "lat": { "type": "number" },
+            "lng": { "type": "number" }
+          }
+        },
+        "needs": {
+          "type": "object",
+          "properties": {
+            "food": { "type": "boolean" },
+            "shelter": { "type": "boolean" },
+            "medical": { "type": "boolean" },
+            "volunteers": { "type": "integer" }
+          }
+        },
+        "status": { "type": "string", "enum": ["reported", "investigating", "active", "resolved"] },
+        "reporterId": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["title", "description", "urgency", "reporterId"]
+    },
+    "Update": {
+      "title": "NGO Update",
+      "description": "Post sharing progress or specific requests for a crisis.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "ngoId": { "type": "string" },
+        "crisisId": { "type": "string" },
+        "content": { "type": "string" },
+        "imageUrl": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    },
+    "Donation": {
+      "title": "Donation Record",
+      "description": "Record of a financial contribution.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "donorId": { "type": "string" },
+        "ngoId": { "type": "string" },
+        "amount": { "type": "number" },
+        "currency": { "type": "string" },
+        "status": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      }
+    }
+  },
+  "firestore": {
+    "/ngos/{ngoId}": {
+      "schema": "NGO",
+      "description": "NGO directory"
+    },
+    "/crises/{crisisId}": {
+      "schema": "Crisis",
+      "description": "Active crisis reports"
+    },
+    "/crises/{crisisId}/updates/{updateId}": {
+      "schema": "Update",
+      "description": "Updates related to a specific crisis"
+    },
+    "/donations/{donationId}": {
+      "schema": "Donation",
+      "description": "Recorded donations"
+    }
+  }
+}
