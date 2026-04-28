@@ -52,9 +52,12 @@
         },
         "status": { "type": "string", "enum": ["reported", "investigating", "active", "resolved"] },
         "reporterId": { "type": "string" },
+        "assignedNgoId": { "type": "string" },
+        "resolvedAt": { "type": "string", "format": "date-time" },
+        "ngoId": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" }
       },
-      "required": ["title", "description", "urgency", "reporterId"]
+      "required": ["title", "description", "urgency", "reporterId", "status"]
     },
     "Update": {
       "title": "NGO Update",
@@ -82,6 +85,45 @@
         "status": { "type": "string" },
         "createdAt": { "type": "string", "format": "date-time" }
       }
+    },
+    "VolunteerProfile": {
+      "title": "Volunteer Profile",
+      "description": "Profile of a user applying to volunteer.",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "userId": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string" },
+        "qualification": { "type": "string" },
+        "certificationUrl": { "type": "string" },
+        "assignedNgoId": { "type": "string" },
+        "assignedCrisisId": { "type": "string" },
+        "deploymentStatus": { "type": "string", "enum": ["idle", "assigned", "on-route", "on-site"] },
+        "status": { "type": "string", "enum": ["pending", "approved", "rejected"] },
+        "verification": {
+          "type": "object",
+          "properties": {
+            "status": { "type": "string", "enum": ["Verified", "Needs Manual Review", "Rejected"] },
+            "reason": { "type": "string" },
+            "documentType": { "type": "string" },
+            "confidence": { "type": "number" },
+            "timestamp": { "type": "string", "format": "date-time" }
+          }
+        },
+        "aiReview": {
+          "type": "object",
+          "properties": {
+            "status": { "type": "string", "enum": ["Approved", "Needs Manual Review", "Rejected"] },
+            "reason": { "type": "string" },
+            "volunteerType": { "type": "string" },
+            "confidence": { "type": "number" },
+            "reviewedAt": { "type": "string", "format": "date-time" }
+          }
+        },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "name", "qualification", "status"]
     }
   },
   "firestore": {
@@ -100,6 +142,10 @@
     "/donations/{donationId}": {
       "schema": "Donation",
       "description": "Recorded donations"
+    },
+    "/volunteers/{volunteerId}": {
+      "schema": "VolunteerProfile",
+      "description": "Volunteer applications and profiles"
     }
   }
 }
