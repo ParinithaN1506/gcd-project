@@ -1,5 +1,5 @@
 {
-  "name": "Remix: NGOVerse",
+  "name": "Remix: Remix: NGOVerse",
   "description": "A comprehensive community-driven website for NGOs to monitor local crises, manage volunteer deployment, share updates, and facilitate donations with real-time map-based tracking and reporting.",
   "requestFramePermissions": [
     "geolocation"

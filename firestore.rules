@@ -1,66 +1,120 @@
 rules_version = '2';
+
 service cloud.firestore {
   match /databases/{database}/documents {
-    // 0. Default Deny catch-all
+    
+    // 0. Global Safety Net
     match /{document=**} {
       allow read, write: if false;
     }
 
-    // Helper Primitives
-    function isSignedIn() { return request.auth != null; }
-    function isOwner(userId) { return isSignedIn() && request.auth.uid == userId; }
-    function isValidId(id) { return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$'); }
-    function incoming() { return request.resource.data; }
-    function existing() { return resource.data; }
+    // --- Helpers ---
 
-    // NGO Validation
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && request.auth.token.email == 'parinithan1506@gmail.com';
+    }
+
+    // --- Validation Blueprints ---
+
     function isValidNGO(data) {
-      return data.name is string && data.name.size() > 0 && data.name.size() <= 100 &&
+      return data.keys().hasAll(['name', 'description', 'ownerId']) &&
+             data.name is string && data.name.size() <= 128 &&
              data.description is string && data.description.size() <= 2000 &&
              data.ownerId == request.auth.uid;
     }
 
-    match /ngos/{ngoId} {
-      allow read: if true;
-      allow create: if isSignedIn() && isValidId(ngoId) && isValidNGO(incoming()) && incoming().ownerId == request.auth.uid;
-      allow update: if isSignedIn() && isOwner(existing().ownerId) && isValidNGO(incoming()) && 
-                    incoming().ownerId == existing().ownerId &&
-                    incoming().diff(existing()).affectedKeys().hasOnly(['name', 'description', 'services', 'needs', 'location', 'contact']);
-      allow delete: if isSignedIn() && isOwner(existing().ownerId);
+    function isValidCrisis(data) {
+      return data.keys().hasAll(['title', 'description', 'urgency', 'reporterId', 'status']) &&
+             data.title is string && data.title.size() <= 200 &&
+             data.description is string && data.description.size() <= 3000 &&
+             data.urgency in ['low', 'medium', 'high', 'critical'] &&
+             data.status in ['reported', 'investigating', 'active', 'resolved'] &&
+             data.reporterId == request.auth.uid;
     }
 
-    // Crisis Validation
-    function isValidCrisis(data) {
-      return data.title is string && data.title.size() > 0 &&
-             data.urgency in ['low', 'medium', 'high', 'critical'] &&
-             data.reporterId == request.auth.uid;
+    function isValidVolunteer(data) {
+      return data.keys().hasAll(['userId', 'name', 'status']) &&
+             data.userId == request.auth.uid &&
+             data.name is string && data.name.size() <= 128 &&
+             data.status in ['pending', 'approved', 'rejected'] &&
+             (data.get('email', '') is string) &&
+             (data.get('qualification', '') is string || data.get('qualification', null) == null) &&
+             (data.get('certificationUrl', '') is string || data.get('certificationUrl', null) == null) &&
+             (!data.keys().contains('verification') || (
+               data.verification is map &&
+               data.verification.status in ['Verified', 'Needs Manual Review', 'Rejected'] &&
+               data.verification.reason is string &&
+               data.verification.documentType is string &&
+               data.verification.confidence is number
+             )) &&
+             (!data.keys().contains('aiReview') || (
+               data.aiReview is map &&
+               data.aiReview.status in ['Approved', 'Needs Manual Review', 'Rejected'] &&
+               data.aiReview.reason is string &&
+               data.aiReview.volunteerType is string &&
+               data.aiReview.confidence is number
+             ));
+    }
+
+    // --- Match Blocks ---
+
+    match /ngos/{ngoId} {
+      allow read: if true;
+      allow create: if isSignedIn() && isValidNGO(incoming()) && isValidId(ngoId);
+      allow update: if isSignedIn() && (isOwner(existing().ownerId) || isAdmin()) && 
+                    incoming().diff(existing()).affectedKeys().hasOnly(['name', 'description', 'services', 'needs', 'location', 'contact', 'updatedAt', 'ownerId']);
+      allow delete: if isSignedIn() && (isOwner(existing().ownerId) || isAdmin());
     }
 
     match /crises/{crisisId} {
       allow read: if true;
-      allow create: if isSignedIn() && isValidId(crisisId) && isValidCrisis(incoming());
+      allow create: if isSignedIn() && isValidCrisis(incoming()) && isValidId(crisisId);
       allow update: if isSignedIn() && (
-        isOwner(existing().reporterId) || 
-        // Allow anyone to update status if they are an NGO owner? Maybe just NGOs can update status
-        exists(/databases/$(database)/documents/ngos/$(request.auth.uid))
-      ) && isValidCrisis(incoming()) &&
-      incoming().reporterId == existing().reporterId;
-      allow delete: if isSignedIn() && isOwner(existing().reporterId);
-
+        (isOwner(existing().reporterId) && incoming().diff(existing()).affectedKeys().hasOnly(['title', 'description', 'urgency', 'location', 'needs', 'status', 'resolvedAt', 'updatedAt', 'assignedNgoId', 'ngoId', 'reporterId'])) ||
+        (incoming().diff(existing()).affectedKeys().hasOnly(['status', 'assignedNgoId', 'resolvedAt', 'updatedAt', 'ngoId']))
+      );
+      
       match /updates/{updateId} {
         allow read: if true;
-        allow create: if isSignedIn() && isValidId(updateId) && 
-                      exists(/databases/$(database)/documents/ngos/$(incoming().ngoId)) &&
-                      get(/databases/$(database)/documents/ngos/$(incoming().ngoId)).data.ownerId == request.auth.uid;
-        allow update, delete: if isSignedIn() && 
-                              get(/databases/$(database)/documents/ngos/$(existing().ngoId)).data.ownerId == request.auth.uid;
+        allow create: if isSignedIn();
+        allow update, delete: if false;
       }
     }
 
-    // Donation Validation
     match /donations/{donationId} {
-      allow read: if isSignedIn() && (isOwner(resource.data.donorId) || exists(/databases/$(database)/documents/ngos/$(resource.data.ngoId)));
-      allow create: if isSignedIn() && incoming().donorId == request.auth.uid;
+      allow read: if isSignedIn() && (isOwner(existing().donorId) || exists(/databases/$(database)/documents/ngos/$(existing().ngoId)));
+      allow create: if isSignedIn();
+      allow update, delete: if false;
+    }
+
+    match /volunteers/{volunteerId} {
+      allow read: if isSignedIn();
+      allow create: if isSignedIn() && isValidVolunteer(incoming()) && isValidId(volunteerId);
+      allow update: if isSignedIn() && (
+        (isOwner(existing().userId) && incoming().diff(existing()).affectedKeys().hasOnly(['name', 'qualification', 'certificationUrl', 'email', 'createdAt', 'status', 'userId', 'verification', 'updatedAt'])) ||
+        (incoming().diff(existing()).affectedKeys().hasOnly(['status', 'assignedNgoId', 'assignedCrisisId', 'deploymentStatus', 'aiReview', 'updatedAt']))
+      );
+      allow delete: if isSignedIn() && isOwner(existing().userId);
     }
   }
 }
